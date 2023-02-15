@@ -30,7 +30,6 @@ yarn.lock
 **/.eslintcache
 .eslintcache
 
-**/dist/*
 # yarn
 .pnp.*
 .yarn/*
