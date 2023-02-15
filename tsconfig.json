@@ -17,7 +17,7 @@
     "removeComments": true,
     "strict": false,
     "lib": ["es5", "es6", "es2017"],
-    "types": ["node","module"]
+    "types": ["node"]
   },
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist"]
 }

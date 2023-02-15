@@ -6,7 +6,8 @@
   "main": "app.ts",
   "scripts": {
     "dev": " nodemon --exec 'ts-node' --files app.ts",
-    "start": "npm install && npm run dev",
+    "prd": "node ./dist/app",
+    "start": "npm install && npm run prd",
     "lint": "eslint --ext .js,.ts .",
     "lint:fix": "eslint --fix --ext .ts,.js,.vue ."
   },
