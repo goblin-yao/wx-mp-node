@@ -3,7 +3,7 @@ import { ChatGPTAPI } from "../../chatgptlib";
 
 // const api = new ChatGPTAPI({ apiKey: process.env.OPENAI_API_KEY });
 const api = new ChatGPTAPI({
-  apiKey: `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`, // jonas
+  apiKey: `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`, // jonas
   // apiKey:`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`, //alex
 });
 
