@@ -24,7 +24,6 @@ yarn-error.log*
 .idea
 
 .logs/
-package-lock.json
 yarn.lock
 .vscode/
 .DS_Store
