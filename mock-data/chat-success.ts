@@ -24,3 +24,29 @@ const chat = {
     },
   },
 };
+const chat1 = {
+  role: "assistant",
+  id: "cmpl-6kCsmjX3C5E67HdISdI7L93bH3Imo",
+  parentMessageId: "411e8220-9d8f-447e-980a-8fa34749f1e8",
+  conversationId: "193ffdd0-b114-4fdf-a03a-468acdabfd9f",
+  text: "2",
+  detail: {
+    id: "cmpl-6kCsmjX3C5E67HdISdI7L93bH3Imo",
+    object: "text_completion",
+    created: 1676470628,
+    model: "text-davinci-003",
+    choices: [
+      {
+        text: "\n2",
+        index: 0,
+        logprobs: null,
+        finish_reason: "stop",
+      },
+    ],
+    usage: {
+      prompt_tokens: 61,
+      completion_tokens: 2,
+      total_tokens: 63,
+    },
+  },
+};

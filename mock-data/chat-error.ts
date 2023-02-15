@@ -1,6 +1,14 @@
 const errorResult = {
   error: {
     statusCode: 429,
-    statusText: "Too Many Requests",
+    data: {
+      error: {
+        message:
+          "You exceeded your current quota, please check your plan and billing details.",
+        type: "insufficient_quota",
+        param: null,
+        code: null,
+      },
+    },
   },
 };

@@ -4,8 +4,7 @@ import pTimeout from "p-timeout";
 import { v4 as uuidv4 } from "uuid";
 
 import * as types from "./types";
-import { fetch as globalFetch } from "./fetch";
-import { fetchSSE } from "./fetch-sse";
+import axios from "axios";
 
 import QuickLRU from "quick-lru";
 
@@ -28,7 +27,6 @@ export class ChatGPTAPI {
   protected _assistantLabel: string;
   protected _endToken: string;
   protected _sepToken: string;
-  protected _fetch: types.FetchFn;
 
   protected _getMessageById: types.GetMessageByIdFunction;
   protected _upsertMessage: types.UpsertMessageFunction;
@@ -49,7 +47,6 @@ export class ChatGPTAPI {
    * @param messageStore - Optional [Keyv](https://github.com/jaredwray/keyv) store to persist chat messages to. If not provided, messages will be lost when the process exits.
    * @param getMessageById - Optional function to retrieve a message by its ID. If not provided, the default implementation will be used (using an in-memory `messageStore`).
    * @param upsertMessage - Optional function to insert or update a message. If not provided, the default implementation will be used (using an in-memory `messageStore`).
-   * @param fetch - Optional override for the `fetch` implementation to use. Defaults to the global `fetch` function.
    */
   constructor(opts: {
     apiKey: string;
@@ -80,8 +77,6 @@ export class ChatGPTAPI {
     messageStore?: Keyv;
     getMessageById?: types.GetMessageByIdFunction;
     upsertMessage?: types.UpsertMessageFunction;
-
-    fetch?: types.FetchFn;
   }) {
     const {
       apiKey,
@@ -96,14 +91,12 @@ export class ChatGPTAPI {
       assistantLabel = ASSISTANT_LABEL_DEFAULT,
       getMessageById = this._defaultGetMessageById,
       upsertMessage = this._defaultUpsertMessage,
-      fetch = globalFetch,
     } = opts;
 
     this._apiKey = apiKey;
     this._apiBaseUrl = apiBaseUrl;
     this._apiReverseProxyUrl = apiReverseProxyUrl;
     this._debug = !!debug;
-    this._fetch = fetch;
 
     this._completionParams = {
       model: CHATGPT_MODEL,
@@ -148,14 +141,6 @@ export class ChatGPTAPI {
     if (!this._apiKey) {
       throw new Error("ChatGPT invalid apiKey");
     }
-
-    if (!this._fetch) {
-      throw new Error("Invalid environment; fetch is not defined");
-    }
-
-    if (typeof this._fetch !== "function") {
-      throw new Error('Invalid "fetch" is not a function');
-    }
   }
 
   /**
@@ -179,7 +164,6 @@ export class ChatGPTAPI {
    * @param opts.promptSuffix - Optional override for the prompt suffix to send to the OpenAI completions endpoint
    * @param opts.timeoutMs - Optional timeout in milliseconds (defaults to no timeout)
    * @param opts.onProgress - Optional callback which will be invoked every time the partial response is updated
-   * @param opts.abortSignal - Optional callback used to abort the underlying `fetch` call using an [AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
    *
    * @returns The response from ChatGPT
    */
@@ -227,10 +211,6 @@ export class ChatGPTAPI {
       async (resolve, reject) => {
         const url =
           this._apiReverseProxyUrl || `${this._apiBaseUrl}/v1/completions`;
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this._apiKey}`,
-        };
         const body = {
           max_tokens: maxTokens,
           ...this._completionParams,
@@ -243,93 +223,52 @@ export class ChatGPTAPI {
           console.log(`sendMessage (${numTokens} tokens)`, body);
         }
 
-        if (stream) {
-          fetchSSE(
-            url,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify(body),
-              signal: abortSignal,
-              onMessage: (data: string) => {
-                if (data === "[DONE]") {
-                  result.text = result.text.trim();
-                  return resolve(result);
-                }
-
-                try {
-                  const response: types.openai.CompletionResponse =
-                    JSON.parse(data);
-
-                  if (response.id) {
-                    result.id = response.id;
-                  }
-
-                  if (response?.choices?.length) {
-                    result.text += response.choices[0].text;
-                    result.detail = response;
-
-                    onProgress?.(result);
-                  }
-                } catch (err) {
-                  console.warn(
-                    "ChatGPT stream SEE event unexpected error",
-                    err
-                  );
-                  return reject(err);
-                }
-              },
+        try {
+          const response = await axios.post(url, body, {
+            timeout: 300000,
+            headers: {
+              Authorization: `Bearer ${this._apiKey}`,
             },
-            this._fetch
-          ).catch(reject);
-        } else {
-          try {
-            const res = await this._fetch(url, {
-              method: "POST",
-              headers,
-              body: JSON.stringify(body),
-              signal: abortSignal,
-            });
-
-            if (!res.ok) {
-              const reason = await res.text();
-              const msg = `ChatGPT error ${
-                res.status || res.statusText
-              }: ${reason}`;
-              const error = new types.ChatGPTError(msg);
-              error.statusCode = res.status;
-              error.statusText = res.statusText;
-              return reject(error);
-            }
-
-            const response: types.openai.CompletionResponse = await res.json();
-            if (this._debug) {
-              console.log(response);
-            }
-
-            if (response?.id) {
-              result.id = response.id;
-            }
-
-            if (response?.choices?.length) {
-              result.text = response.choices[0].text.trim();
-            } else {
-              const res = response as any;
-              return reject(
-                new Error(
-                  `ChatGPT error: ${
-                    res?.detail?.message || res?.detail || "unknown"
-                  }`
-                )
-              );
-            }
-
-            result.detail = response;
-
-            return resolve(result);
-          } catch (err) {
-            return reject(err);
+          });
+          console.log("==>>", response);
+          if (this._debug) {
+            console.log(response);
           }
+          if (200 != response.status) {
+            const msg = `ChatGPT error ${
+              response.status || response.statusText
+            }`;
+            const error = new types.ChatGPTError(msg);
+            error.statusCode = response.status;
+            error.statusText = response.statusText;
+            return reject(error);
+          }
+
+          if (response?.data?.id) {
+            result.id = response.data.id;
+          }
+
+          if (response?.data?.choices?.length) {
+            result.text = response.data.choices[0].text.trim();
+          } else {
+            const res = response.data as any;
+            return reject(
+              new Error(
+                `ChatGPT error: ${
+                  res?.detail?.message || res?.detail || "unknown"
+                }`
+              )
+            );
+          }
+
+          result.detail = response.data;
+
+          return resolve(result);
+        } catch (error) {
+          return reject({
+            statusCode: error.response.status,
+            data: error.response.data,
+          });
         }
       }
     ).then((message) => {
